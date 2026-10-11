@@ -1,4 +1,4 @@
-# inline-images
+# inline-terminal-images
 
 Images show up inline in Claude Code when you're in Kitty or Ghostty, tmux included.
 
@@ -13,7 +13,7 @@ It's a Claude Code mod (a plugin built from function hooks) and uses Claude Code
 In Claude Code:
 
 ```
-/plugin install inline-images --marketplace <owner>/inline-images
+/plugin install inline-terminal-images --marketplace justinmdickey/inline-terminal-images
 ```
 
 Answer `y` to add the marketplace, then pick a scope.

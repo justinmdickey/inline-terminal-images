@@ -32,7 +32,7 @@ const below = (on: any, env: Record<string, string> = {}, cell = '11 26') => {
 }
 
 const mount = ($: any, p: unknown, columns = 100, rows = 40) =>
-  $.ui.mount({ plugin: 'inline-images', surface: 'terminal', component: 'ToolResult', props: p, viewport: { columns, rows } })
+  $.ui.mount({ plugin: 'inline-terminal-images', surface: 'terminal', component: 'ToolResult', props: p, viewport: { columns, rows } })
 
 test('fitBox keeps the picture in shape for the cell size', () => {
   expect(fitBox(200, 100, 80, 2)).toEqual({ columns: 80, rows: 20 })
@@ -71,14 +71,14 @@ test('converts a Read JPEG to a cached PNG file', async ($, on) => {
 test('leaves other tools and surfaces alone', async ($, on) => {
   below(on)
   for (const [surface, tool] of [['terminal', 'Bash'], ['desktop', 'Read']] as const) {
-    const ui = await $.ui.mount({ plugin: 'inline-images', surface, component: 'ToolResult', props: props(read(), tool) })
+    const ui = await $.ui.mount({ plugin: 'inline-terminal-images', surface, component: 'ToolResult', props: props(read(), tool) })
     expect(await ui.drawn()).toMatchObject({ type: 'Text' })
   }
 })
 
 test('draws a show_image result from its snapshot, with the gutter and label', async ($, on) => {
   below(on)
-  const ui = await mount($, props(shown('Home'), 'mcp__inline-images__show_image'), 120)
+  const ui = await mount($, props(shown('Home'), 'mcp__inline-terminal-images__show_image'), 120)
   expect(await ui.drawn()).toMatchObject({
     type: 'Box',
     children: [
@@ -91,7 +91,7 @@ test('draws a show_image result from its snapshot, with the gutter and label', a
 test('inside tmux, tags the head line and forwards the picture once painted', async ($, on) => {
   const clock = mock.clock(on)
   const calls = below(on, { TMUX: '/tmp/tmux-1000/default,1,0' })
-  const ui = await mount($, props(shown(), 'mcp__inline-images__show_image', { first: 3, last: 30, of: 31 }), 120, 48)
+  const ui = await mount($, props(shown(), 'mcp__inline-terminal-images__show_image', { first: 3, last: 30, of: 31 }), 120, 48)
   expect(await ui.find({ type: 'Text' })).toMatchObject({ children: ['  ⎿  ', '#t1 shot.jpg (1600x900)'] })
 
   expect(calls.map(c => c.argv[2])).toEqual([expect.stringMatching(/cell-size\.py$/)])
@@ -134,7 +134,7 @@ test('draws an image pasted into a prompt under the prompt row', async ($, on) =
     value: { ...ran, stdout: e.argv[2]?.endsWith('cell-size.py') ? '11 26' : e.init?.stdin === PNG ? '200 100' : '' },
   }))
   const ui = await $.ui.mount({
-    plugin: 'inline-images',
+    plugin: 'inline-terminal-images',
     surface: 'terminal',
     component: 'UserMessage',
     requestId: 'm1',

@@ -6,7 +6,7 @@ const MAX_ROWS = 24
 // A tool result's text starts after "  ⎿  "; pictures line up with it.
 const GUTTER = 5
 const CACHE_DIR = '/tmp/claude-inline-images'
-const SHOW_IMAGE = 'mcp__inline-images__show_image'
+const SHOW_IMAGE = 'mcp__inline-terminal-images__show_image'
 
 type ImageRead = {
   type: 'image'
