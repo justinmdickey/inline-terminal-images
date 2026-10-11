@@ -1,0 +1,13 @@
+{
+  "name": "inline-images",
+  "description": "Inline images in Claude Code for Kitty and Ghostty, tmux included",
+  "owner": {
+    "name": "Justin Dickey"
+  },
+  "plugins": [
+    {
+      "name": "inline-images",
+      "source": "./"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "inline-images",
+  "version": "0.1.0",
+  "description": "Inline images in Claude Code for Kitty and Ghostty (tmux too): Read results, a token-free show_image tool, and pasted images",
+  "author": { "name": "Justin Dickey" },
+  "license": "MIT",
+  "keywords": ["images", "kitty", "ghostty", "tmux", "terminal"]
+}
