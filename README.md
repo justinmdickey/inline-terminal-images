@@ -51,6 +51,8 @@ Claude Code turns images off inside tmux, and when they're forced on it sends th
 
 Inside tmux each picture has a dim `#xxxxx` tag above it. That's how the mod tells pictures apart: after each draw, `bin/tmux-forward.py` reads the pane, pairs each image block with the tag above it, and sends the picture again through tmux passthrough. It skips anything it can't pair for sure.
 
+tmux also reads every Kitty graphics command as a pane title, which would turn your window title into `Ga=T,U=1,...`. The mod sets a `pane-title-changed` hook on its own pane that puts the last real title back.
+
 Optional: with `set -g default-terminal tmux-256color` and `set -as terminal-features ',xterm-ghostty:RGB'`, Claude Code uses 24-bit image ids, so ids get reused less.
 
 ## Limits

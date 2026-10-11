@@ -241,8 +241,24 @@ const parseShown = (output: unknown): Shown | undefined => {
   }
 }
 
+// tmux reads any APC escape (\e_...\e\\) as a screen-style pane title, so each
+// Kitty graphics command Claude Code writes ("Ga=T,U=1,...") becomes the pane
+// title and, with set-titles on, the terminal window's. This pane hook keeps
+// the last real title and puts it back whenever a graphics command lands.
+const TITLE_HOOK =
+  'if -F "#{m/r:^G[a-zA-Z]=,#{pane_title}}" ' +
+  '"run -C \\"select-pane -T \\\\\\"#{q:@good_title}\\\\\\"\\"" ' +
+  '"set -pF @good_title \\"#{pane_title}\\""'
+
+const guardTitle = async ($: EngineInterface) => {
+  const pane = await $.env.get('TMUX_PANE')
+  if (!pane || !(await inTmux($))) return
+  await $.process.run(['tmux', 'set-hook', '-p', '-t', pane, 'pane-title-changed', TITLE_HOOK], { timeoutMs: 5_000 }).catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    void guardTitle($)
     await $.tool.register({
       name: 'show_image',
       description:
