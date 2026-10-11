@@ -1,6 +1,6 @@
 # inline-terminal-images
 
-![A pasted screenshot drawn inline under a prompt in Claude Code, in Ghostty inside tmux](docs/demo.png)
+![A pasted screenshot drawn inline under a prompt in Claude Code, in Ghostty](docs/demo.png)
 
 Images show up inline in Claude Code when you're in Kitty or Ghostty, tmux included.
 
