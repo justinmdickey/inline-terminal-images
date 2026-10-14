@@ -256,9 +256,31 @@ const guardTitle = async ($: EngineInterface) => {
   await $.process.run(['tmux', 'set-hook', '-p', '-t', pane, 'pane-title-changed', TITLE_HOOK], { timeoutMs: 5_000 }).catch(() => undefined)
 }
 
+// Every session counts its image ids from 1, so a pane in another window can
+// overwrite this pane's pictures in the terminal, and tmux drops the forwarder's
+// sends while the pane is off screen. These global hooks, one slot per pane by
+// its number, run the forwarder again with the pane's last images whenever a
+// window, pane or session switch may have brought it back. The forwarder
+// unsets them once the pane is gone.
+const REPLAY_HOOKS = ['session-window-changed', 'after-select-pane', 'client-session-changed']
+
+export const replayHook = (root: string, pane: string) =>
+  `run-shell -b "python3 -I '${root}/bin/tmux-forward.py' --pane '${pane}' >/dev/null 2>&1 || true"`
+
+const setReplayHooks = async ($: EngineInterface) => {
+  const pane = await $.env.get('TMUX_PANE')
+  if (!pane || !(await inTmux($))) return
+  const n = pane.replace(/\D/g, '')
+  for (const hook of REPLAY_HOOKS)
+    await $.process
+      .run(['tmux', 'set-hook', '-g', `${hook}[${n}]`, replayHook($.plugin.root, pane)], { timeoutMs: 5_000 })
+      .catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     void guardTitle($)
+    void setReplayHooks($)
     await $.tool.register({
       name: 'show_image',
       description:

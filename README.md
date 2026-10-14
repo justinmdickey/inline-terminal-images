@@ -53,11 +53,12 @@ Inside tmux each picture has a dim `#xxxxx` tag above it. That's how the mod tel
 
 tmux also reads every Kitty graphics command as a pane title, which would turn your window title into `Ga=T,U=1,...`. The mod sets a `pane-title-changed` hook on its own pane that puts the last real title back.
 
-Optional: with `set -g default-terminal tmux-256color` and `set -as terminal-features ',xterm-ghostty:RGB'`, Claude Code uses 24-bit image ids, so ids get reused less.
+Every Claude session numbers its images from 1, and all tmux panes share one terminal, so two sessions reuse the same ids. The mod keeps one record per tmux client of which picture the terminal holds under each id, and sets global tmux hooks (`session-window-changed`, `after-select-pane`, `client-session-changed`, one slot per pane) that send a pane's pictures again when you switch back to it. They're removed once the pane is gone.
 
 ## Limits
 
 - A Read only draws its image when it gets its own row. Claude Code folds runs of reads into one "Read N files" line.
+- Two Claude panes on screen side by side can't both show a picture under the same id. The focused pane wins, and the other shows the focused pane's picture there until you switch.
 - The tmux workaround depends on how Claude Code draws image placeholders today, so an update could break it.
 - Converted images are cached in `/tmp/claude-inline-images/`.
 

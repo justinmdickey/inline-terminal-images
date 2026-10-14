@@ -13,10 +13,12 @@ that one is the image whose message the mod reported clipped at the top.
 
 stdin: {"images": [{"tag", "file", "c", "r", "top"}, ...]}; top: the message's
 first rows are off screen now (unknown where the terminal does not say).
+With --pane %N (from a tmux hook), the images that pane's last run was given.
 stdout: a JSON summary, for the log.
 """
 
 import base64
+import fcntl
 import json
 import os
 import re
@@ -172,40 +174,118 @@ def transmit(image_id, img):
     return "\x1bPtmux;" + apc.replace("\x1b", "\x1b\x1b") + "\x1b\\"
 
 
+def decide(paired, sent, pane, active, visible):
+    """Which paired images to send: {id: image}, and the ones left to another
+    pane. Every Claude Code session counts its ids from 1, and all the panes
+    of one client draw into one terminal, so `sent` (id -> [file, c, r, pane],
+    shared by those panes) says what the terminal holds under each id. A pane
+    takes an id another pane holds unless that pane is on screen and this one
+    is not the focused one; `visible(pane)` says whether a pane is on screen."""
+    sends, yielded = {}, {}
+    for image_id, img in paired.items():
+        held = sent.get(str(image_id))
+        if held and held[:3] == [img["file"], img["c"], img["r"]]:
+            continue
+        if held and held[3] != pane and not active and visible(held[3]):
+            yielded[image_id] = held[3]
+        else:
+            sends[image_id] = img
+    return sends, yielded
+
+
 def tmux(*args):
     return subprocess.run(["tmux", *args], capture_output=True, text=True, check=True).stdout
 
 
+# A pane's tty and client, whether it is on screen (its window current in an
+# attached session, and not hidden behind a zoomed pane), and whether focused.
+PANE_INFO = (
+    "#{pane_id}\n#{pane_tty}\n#{client_pid}:#{client_created}\n"
+    "#{?#{&&:#{session_attached},#{window_active}},#{?window_zoomed_flag,#{pane_active},1},0}\n#{pane_active}"
+)
+# The tmux hooks the mod sets per pane (by its number) to run this again.
+HOOKS = ("session-window-changed", "after-select-pane", "client-session-changed")
+
+
+def pane_info(pane):
+    """[tty, client, on screen, focused], or None once the pane is gone (tmux
+    answers for the current pane when the one named does not exist)."""
+    try:
+        info = tmux("display", "-p", "-t", pane, PANE_INFO).split("\n")
+    except subprocess.CalledProcessError:
+        return None
+    return info[1:5] if info[0] == pane else None
+
+
+def on_screen(pane):
+    info = pane_info(pane)
+    return bool(info) and info[2] == "1"
+
+
 def main():
-    pane = os.environ.get("TMUX_PANE")
+    # Run by the mod with this draw's images on stdin, or by a tmux hook
+    # (--pane %N) when the pane may have come back on screen.
+    replay = len(sys.argv) == 3 and sys.argv[1] == "--pane"
+    pane = sys.argv[2] if replay else os.environ.get("TMUX_PANE")
     if not pane:
         return
-    images = json.load(sys.stdin)["images"]
+    number = pane.strip("%")
+    images_path = f"{CACHE_DIR}/pane-{number}.json"
+    info = pane_info(pane)
+    if info is None:
+        if replay:  # the pane is gone: its hooks and images too
+            for hook in HOOKS:
+                subprocess.run(["tmux", "set-hook", "-gu", f"{hook}[{number}]"], capture_output=True)
+            try:
+                os.remove(images_path)
+            except OSError:
+                pass
+        return
+    tty, client, visible, active = info
+    if replay:
+        try:
+            with open(images_path) as f:
+                images = json.load(f)
+        except (OSError, ValueError):
+            return
+    else:
+        images = json.load(sys.stdin)["images"]
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(images_path, "w") as f:
+            json.dump(images, f)
+    # tmux drops passthrough from a pane that is not on screen.
+    if visible != "1":
+        print(json.dumps({"hidden": True}))
+        return
+
     lines = tmux("capture-pane", "-e", "-p", "-t", pane, "-S", "-200").split("\n")
     paired, skipped = pair(lines, images)
 
-    # What the terminal already holds per id, as long as it is the same client.
-    tty, client = tmux("display", "-p", "-t", pane, "#{pane_tty}\n#{client_pid}:#{client_created}").split("\n")[:2]
-    state_path = f"{CACHE_DIR}/sent-{pane.strip('%')}.json"
-    try:
-        with open(state_path) as f:
-            state = json.load(f)
-        if state.get("client") != client:
-            raise ValueError
-    except (OSError, ValueError):
-        state = {"client": client, "sent": {}}
-
-    sends = {i: img for i, img in paired.items() if state["sent"].get(str(i)) != [img["file"], img["c"], img["r"]]}
-    if sends:
-        with open(tty, "w") as t:
+    # What the terminal holds per id, shared by every pane of the client.
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    state_path = f"{CACHE_DIR}/sent-{client.replace(':', '-')}.json"
+    with open(state_path + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with open(state_path) as f:
+                sent = json.load(f)
+        except (OSError, ValueError):
+            sent = {}
+        sends, yielded = decide(paired, sent, pane, active == "1", on_screen)
+        if sends:
+            with open(tty, "w") as t:
+                for image_id, img in sends.items():
+                    t.write(transmit(image_id, img))
             for image_id, img in sends.items():
-                t.write(transmit(image_id, img))
-        for image_id, img in sends.items():
-            state["sent"][str(image_id)] = [img["file"], img["c"], img["r"]]
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(state_path, "w") as f:
-            json.dump(state, f)
-    print(json.dumps({"sent": {i: img["tag"] for i, img in sends.items()}, "held": len(paired) - len(sends), "skipped": skipped}))
+                sent[str(image_id)] = [img["file"], img["c"], img["r"], pane]
+            with open(state_path, "w") as f:
+                json.dump(sent, f)
+    print(json.dumps({
+        "sent": {i: img["tag"] for i, img in sends.items()},
+        "held": len(paired) - len(sends) - len(yielded),
+        "yielded": yielded,
+        "skipped": skipped,
+    }))
 
 
 if __name__ == "__main__":

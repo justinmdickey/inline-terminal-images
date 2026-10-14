@@ -1,6 +1,6 @@
 import type { OnScreen } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
-import { fitBox } from '../hooks/register'
+import { fitBox, replayHook } from '../hooks/register'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAMgAAABkAQMAAAD5SO1IAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAADUExURf8AABniCTcAAAAHdElNRQfqCgsOCxeMA3ziAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTEwLTExVDE0OjExOjIzKzAwOjAwMvN/GAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0xMC0xMVQxNDoxMToyMyswMDowMEOux6QAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMTAtMTFUMTQ6MTE6MjMrMDA6MDAUu+Z7AAAAGUlEQVRIx+3BgQAAAADDoPlTH+AKVQEAwBsKKAABSvrqYAAAAABJRU5ErkJggg=='
 const CACHE = '/tmp/claude-inline-images'
@@ -40,6 +40,10 @@ test('fitBox keeps the picture in shape for the cell size', () => {
   expect(fitBox(100, 400, 80, 2)).toEqual({ columns: 12, rows: 24 })
   expect(fitBox(100, 400, 80, 2, 10)).toEqual({ columns: 5, rows: 10 })
   expect(fitBox(1, 1, 0, 2)).toEqual({ columns: 1, rows: 1 })
+})
+
+test('the replay hook runs the forwarder for its pane quietly in the background', () => {
+  expect(replayHook('/plug', '%12')).toBe(`run-shell -b "python3 -I '/plug/bin/tmux-forward.py' --pane '%12' >/dev/null 2>&1 || true"`)
 })
 
 test('draws a Read PNG from its bytes outside tmux, under its size', async ($, on) => {

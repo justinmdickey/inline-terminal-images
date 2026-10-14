@@ -115,5 +115,15 @@ check("empty pane", fwd.pair(["", tag("aaaaa"), "", "> "], [A]), ({}, []))
 t = fwd.transmit(7, A)
 check("transmit is tmux-wrapped", t.startswith("\x1bPtmux;\x1b\x1b_Ga=T,U=1,q=2,f=100,t=f,i=7,c=80,r=20;") and t.endswith("\x1b\x1b\\\x1b\\"), True)
 
+# What the terminal holds is shared by the client's panes, whose ids collide.
+a, b = {"tag": "aaaaa", "file": "/tmp/a.png", "c": 80, "r": 20}, {"tag": "bbbbb", "file": "/tmp/b.png", "c": 80, "r": 20}
+shown = lambda *panes: lambda p: p in panes
+check("an id the terminal already holds is not sent again", fwd.decide({1: a}, {"1": ["/tmp/a.png", 80, 20, "%1"]}, "%1", False, shown()), ({}, {}))
+check("an id another pane overwrote is sent again", fwd.decide({1: a}, {"1": ["/tmp/b.png", 80, 20, "%2"]}, "%1", False, shown()), ({1: a}, {}))
+check("an id an unfocused pane on screen holds is left to it", fwd.decide({1: a}, {"1": ["/tmp/b.png", 80, 20, "%2"]}, "%1", False, shown("%2")), ({}, {1: "%2"}))
+check("the focused pane takes an id from a pane on screen", fwd.decide({1: a}, {"1": ["/tmp/b.png", 80, 20, "%2"]}, "%1", True, shown("%2")), ({1: a}, {}))
+check("a new size of the pane's own image is sent", fwd.decide({1: dict(a, c=40)}, {"1": ["/tmp/a.png", 80, 20, "%1"]}, "%1", False, shown("%1")), ({1: dict(a, c=40)}, {}))
+check("an unknown id is sent", fwd.decide({1: a, 2: b}, {}, "%1", False, shown()), ({1: a, 2: b}, {}))
+
 print("failures:", failures)
 sys.exit(1 if failures else 0)
